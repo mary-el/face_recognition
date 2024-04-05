@@ -8,9 +8,40 @@ import face_recognition as fr
 import numpy as np
 import pandas as pd
 
-X0, Y0, W0, H0 = 0.1, 0.1, 0.35, 0.8
-X1, Y1, W1, H1 = 0.55, 0.1, 0.35, 0.8
+import requests
+from time import sleep
+host="192.168.0.19" # IP сервера с Perco
+id_tur=3 # id турникета
+headers = {
+        "Content-type": "application/json; charset=UTF-8",
+        "Authorization": "Bearer null"
+    }
 
+X0, Y0, W0, H0 = 0.1, 0.027, 0.2, 0.87
+X1, Y1, W1, H1 = 0.35, 0.02, 0.2, 0.87
+
+global ID_PRED, DIRECTION_PRED 
+
+def getToken(): #  авторизация
+    url = f'http://{host}/api/system/auth'
+    payload = {
+               "login": "api",
+               "password": "1q2w3e4R"
+    }   
+    return requests.request("post", url, json=payload, headers=headers).json()["token"]
+
+def passing(user_id,direction,event_description='Камера'):
+    '''
+    direction 1 на вход 2 на выход  направление  открытие турникета
+    '''  
+    url = f'http://{host}/api/devices/{id_tur}/pass'
+    payload = {
+    "user_id": user_id,
+    "direction": direction,
+    "event_description": event_description
+    } 
+    response = requests.request("post", url, json=payload, headers=headers)
+    return response.text
 
 def show_recognized_faces(frame, face_locations, recognized_names, reduce_frame, left_area, right_area):
     cv2.rectangle(frame, (left_area[0], left_area[1]), (left_area[2], left_area[3]), (0, 255, 255), 2)
@@ -32,9 +63,16 @@ def show_recognized_faces(frame, face_locations, recognized_names, reduce_frame,
     return frame
 
 
-def open_doors(name, door_number):
-    doors = ['left', 'right']
-    print(f'Open the {doors[door_number]} door for {name}!')
+def open_doors(id, direction):
+    global ID_PRED, DIRECTION_PRED 
+    doors = ['вход', 'выход']
+    print(f'Open the {doors[direction-1]} door for {id}!')
+    if not(id==ID_PRED and direction==DIRECTION_PRED):
+        ID_PRED=id 
+        DIRECTION_PRED=direction
+        passing(int(id),direction) #  моя откравает проход
+    
+    #sleep(3)
 
 
 def video_capture(encodings, names, camera, reduce_frame=2, show=True):
@@ -65,7 +103,7 @@ def video_capture(encodings, names, camera, reduce_frame=2, show=True):
                         left_area[1] < (face_locations[i][0] + face_locations[i][2]) // 2 * reduce_frame < left_area[
                             3]):
                     open_name = name
-                    open_door = 0
+                    open_door = 2
                 elif (right_area[0] < (face_locations[i][3] + face_locations[i][1]) // 2 * reduce_frame < right_area[
                     2] and
                       right_area[1] < (face_locations[i][0] + face_locations[i][2]) // 2 * reduce_frame < right_area[
@@ -86,9 +124,13 @@ def video_capture(encodings, names, camera, reduce_frame=2, show=True):
     cv2.destroyAllWindows()
 
 
-def read_db(file):
+def read_db0(file):
     df = pd.read_excel(file)
     return df
+def read_db(): 
+    url = f'http://{host}/api/users/staff/list'
+    querystring = {"withPhone":"true"} #  костыль считаю у кого по базе  есть телефон тот  может ходить по камере
+    return pd.read_json(requests.request("get", url, headers=headers, params=querystring).text)[['id','name']]
 
 
 def encode_folder(folder, save_to):
@@ -103,7 +145,7 @@ def encode_folder(folder, save_to):
 
 
 def get_encodings(db_file, encoded_path):
-    df = read_db(db_file)
+    df = read_db()
     encodings = []
     names = []
     for file, name in df.values:
@@ -111,7 +153,9 @@ def get_encodings(db_file, encoded_path):
         with open(path, 'rb') as f:
             encoding = pickle.load(f)
         encodings.append(encoding)
-        names.append(name)
+        #names.append(name) было
+        names.append(str(file))
+        #print(file,name)
     return encodings, names
 
 
@@ -120,12 +164,24 @@ if __name__ == '__main__':
     parser.add_argument('-e', '--encode', type=str)
     parser.add_argument('--db', type=str, default='db.xlsx')
     parser.add_argument('-p', '--path', type=str, default='encoded')
-    parser.add_argument('-c', '--camera', type=str, default=0)
+    parser.add_argument('-c', '--camera', type=str, default=
+                                #0
+                                'rtsp://192.168.0.46/ONVIF/MediaInput?profile=3_def_profile3'
+                                #'rtsp://192.168.0.59:554/av0_0'
+                                #'rtsp://admin:Qu166233@192.168.0.38:554/ch01.264?dev=1'
+                                #'rtsp://admin:166233@192.168.0.21:554/stream1'
+                                #'rtsp://admin:166233@192.168.0.29:554/av0_0'
+    )
     parser.add_argument('-s', '--show', action='store_true')
 
     args = parser.parse_args()
+
     if args.encode:
         encode_folder(args.encode, args.path)
         exit()
+
+    headers["Authorization"]=getToken()
+    ID_PRED, DIRECTION_PRED  =0 , 0   
     encodings, names = get_encodings(args.db, args.path)
+   
     video_capture(encodings, names, camera=args.camera, show=args.show)
