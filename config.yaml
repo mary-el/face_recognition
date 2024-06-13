@@ -1,0 +1,26 @@
+camera: 0
+excel_file: db.xlsx
+images_folder: images
+mode: facenet
+no_name_user: undefined
+show: True
+test_mode: True
+
+connection:
+  host: 192.168.0.19
+  login: api
+  password: 1q2w3e4R
+
+face-recognition:
+  embedding_folder: fr_embeddings
+  num_jitters: 5
+  tolerance: 0.55
+
+facenet:
+  embedding_folder: facenet_embeddings
+  threshold: 1
+
+tourniquets:
+  area_1: [0.1, 0.027, 0.2, 0.87]  # x, y, w, h
+  area_2: [0.35, 0.02, 0.2, 0.87]
+  id_tur: 3
