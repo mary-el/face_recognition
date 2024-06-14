@@ -1,4 +1,5 @@
 camera: 0
+source: excel
 excel_file: db.xlsx
 images_folder: images
 mode: facenet

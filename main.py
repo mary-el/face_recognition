@@ -79,7 +79,7 @@ if __name__ == '__main__':
     if not config['test_mode']:
         set_headers()
 
-    if config['excel_file']:
+    if config['source'] == 'excel':
         dict_users = read_excel(config['excel_file'])
     else:
         dict_users = read_db()
