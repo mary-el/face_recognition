@@ -8,7 +8,7 @@ import requests
 from config import config
 
 connection_config = config['connection']
-
+log_file = config['log_file']
 headers = {
     "Content-type": "application/json; charset=UTF-8",
     "Authorization": "Bearer null"
@@ -45,21 +45,19 @@ def passing(user_id, direction, event_description='Камера'):
     '''
     direction 1 на вход 2 на выход  направление  открытие турникета
     '''
-    url = f'http://{connection_config["host"]}/api/devices/{config["tourniquet"]["id_tur"]}/pass'
+    url = f'http://{connection_config["host"]}/api/devices/{config["tourniquets"]["id_tur"]}/pass'
     payload = {
         "user_id": user_id,
         "direction": direction,
         "event_description": event_description
     }
     response = requests.request("post", url, json=payload, headers=headers)
-    # print(response.text)
-    # return (pd.read_json(response.text).get('result'))
     return (json.loads(response.text).get('result'))
 
 
-def open_doors(id, direction, dict_users):
-    doors = ['вход', 'выход']
-    print(f'В {datetime.now().strftime("%D:%H:%M:%S")}  {doors[direction - 1]}  {dict_users[id]}! ')
+def open_doors(id, direction, user_name):
+    doors = [0,'вход', 'выход']
+    print_log(f'В {datetime.now().strftime("%D:%H:%M:%S")}  {doors[direction]}  {user_name}! ')
     if not (id == previous_state['id'] and direction == previous_state['direction']):
         previous_state['id'] = id
         previous_state['direction'] = direction
@@ -68,7 +66,7 @@ def open_doors(id, direction, dict_users):
         else:
             exit()  # скорее всего просрочен токен авторизации выходим и заходим снова
 
-    # print(read_db())
+    
 
 
 def read_db1():
@@ -112,3 +110,11 @@ def get_encodings(dict_users, encoded_path):
 def face_in_area(face_location, area):
     return area[0] < (face_location[3] + face_location[1]) // 2 < area[2] and area[1] < (
             face_location[0] + face_location[2]) // 2 < area[3]
+
+def print_log(prn_text):
+    o = open(log_file,'a')
+    if config['test_mode']:
+        print(prn_text)
+    print(prn_text,file=o)
+    o.close()
+ 
