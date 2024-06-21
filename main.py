@@ -8,15 +8,17 @@ from config import config
 area_1 = config['tourniquets']['area_1']
 area_2 = config['tourniquets']['area_2']
 
+date_time_format=config['date_time_format']
+
 if config['mode'] == 'face-recognition':
     from modes.face_recognition import encode_folder, search_for_faces
 elif config['mode'] == 'facenet':
     from modes.facenet import encode_folder, search_for_faces
 else:
-    print(f'Unsupported mode: {config["mode"]}')
+    print_log(f'Unsupported mode: {config["mode"]}')
     exit()
 
-from utils import set_headers, open_doors, read_db, read_excel, get_encodings
+from utils import set_headers, open_doors, read_db, read_excel, get_encodings, print_log
 
 
 def show_recognized_faces(frame, face_locations, recognized_ids, reduce_frame, left_area, right_area):
@@ -55,8 +57,12 @@ def video_capture(id_to_encoding, camera, dict_users, reduce_frame=2, show=True,
         if open_door != -1:
             if test:
                 print(f'Door #{open_door} opened for {", ".join(dict_users[i] for i in recognized_ids if i != 0)}')
-            else:
-                open_doors(user_ind, open_door, dict_users)
+            else: 
+                open_doors(user_ind, open_door, dict_users[user_ind])
+            file_name=f'./{config["frame_folder"]}/{datetime.now().strftime(date_time_format)}_Id{user_ind}_direct{open_door}.jpg'
+            cv2.imwrite(file_name,show_recognized_faces(frame, face_locations, recognized_ids, reduce_frame, left_area,
+                                             right_area))           
+
         if show:
             cv2.imshow('Face recognition',
                        show_recognized_faces(frame, face_locations, recognized_ids, reduce_frame, left_area,
@@ -76,16 +82,15 @@ if __name__ == '__main__':
     if args.encode:
         encode_folder()
         exit()
-    if not config['test_mode']:
-        set_headers()
-
+    
     if config['source'] == 'excel':
         dict_users = read_excel(config['excel_file'])
     else:
+        set_headers() # для работы  с базой должен  получьт токен
         dict_users = read_db()
     dict_users[0] = config['no_name_user']
     id_to_encoding = get_encodings(dict_users, config[config['mode']]['embedding_folder'])
 
-    print(f'started at {datetime.now().strftime("%D:%H:%M:%S")}')
+    print_log(f'started at {datetime.now().strftime("%D:%H:%M:%S")}')
     video_capture(id_to_encoding, camera=config['camera'], show=config['show'], dict_users=dict_users,
                   test=config['test_mode'])
