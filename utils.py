@@ -43,32 +43,28 @@ def read_users():  # Получение списка сотрудников
 
 def passing(user_id, direction, event_description='Камера'):
     '''
-    direction 1 на вход 2 на выход  направление  открытие турникета
+    direction=1 for entrance, =2 fo exit
     '''
-    url = f'http://{connection_config["host"]}/api/devices/{config["tourniquet"]["id_tur"]}/pass'
+    url = f'http://{connection_config["host"]}/api/devices/{config["turnstiles"]["id_tur"]}/pass'
     payload = {
         "user_id": user_id,
         "direction": direction,
         "event_description": event_description
     }
     response = requests.request("post", url, json=payload, headers=headers)
-    # print(response.text)
-    # return (pd.read_json(response.text).get('result'))
     return (json.loads(response.text).get('result'))
 
 
 def open_doors(id, direction, dict_users):
-    doors = ['вход', 'выход']
+    doors = ['entrance', 'exit']
     print(f'В {datetime.now().strftime("%D:%H:%M:%S")}  {doors[direction - 1]}  {dict_users[id]}! ')
     if not (id == previous_state['id'] and direction == previous_state['direction']):
         previous_state['id'] = id
         previous_state['direction'] = direction
-        if (passing(int(id), direction, f'камера {direction}') == 'ok'):  # моя откравает проход
+        if (passing(int(id), direction, f'camera {direction}') == 'ok'):
             pass
         else:
-            exit()  # скорее всего просрочен токен авторизации выходим и заходим снова
-
-    # print(read_db())
+            exit()
 
 
 def read_db1():

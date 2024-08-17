@@ -22,7 +22,7 @@
   + embedding_folder: папка с эмбеддингами
   + threshold: чем ниже, тем строже
 
-* tourniquets:
+* turnstiles:
   + area_1: x, y, w, h зоны 1 в относительных значениях
   + area_2
   + id_tur

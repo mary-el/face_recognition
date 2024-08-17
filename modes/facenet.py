@@ -4,12 +4,12 @@ import pickle
 
 import numpy as np
 import torch
+import tqdm
 from PIL import Image
 from facenet_pytorch import MTCNN, InceptionResnetV1
 
 from config import config
 from utils import face_in_area
-import tqdm
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 

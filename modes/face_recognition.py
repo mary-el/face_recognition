@@ -4,10 +4,10 @@ import pickle
 
 import face_recognition as fr
 import numpy as np
+import tqdm
 
 from config import config
 from utils import face_in_area
-import tqdm
 
 
 def encode_folder():

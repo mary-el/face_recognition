@@ -21,7 +21,7 @@ facenet:
   embedding_folder: facenet_embeddings
   threshold: 1
 
-tourniquets:
+turnstiles:
   area_1: [0.1, 0.027, 0.2, 0.87]  # x, y, w, h
   area_2: [0.35, 0.02, 0.2, 0.87]
   id_tur: 3
