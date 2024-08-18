@@ -1,4 +1,4 @@
-## Project Title: Face Recognition for Smart Entrance Gate
+## Face Recognition for Smart Entrance Gate
 ![изображение](https://github.com/user-attachments/assets/898ac845-e883-4e3c-9ea3-c2a648b13248)
 
 ---
