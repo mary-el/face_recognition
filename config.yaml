@@ -1,6 +1,4 @@
-camera: rtsp://192.168.0.46/ONVIF/MediaInput?profile=3_def_profile3
-#camera: rtsp://admin:166233@192.168.0.53:554/user=admin_password=1j63jWmf_channel=1_stream=1.sdp?real_stream
-#camera: 0
+camera: 0
 source: db
 excel_file: db.xlsx
 
@@ -9,7 +7,8 @@ frame_folder: frame
 no_name_user: undefined
 
 date_time_format: '%mD%dh%Hm%Ms%S'
-log_file: log.txt 
+log_file: log.txt
+frame_mode: full
 
 mode: facenet  
 #mode: face-recognition
@@ -34,7 +33,7 @@ facenet:
   embedding_folder: facenet_embeddings
   threshold: 0.86
 
-tourniquets:
+turnstiles:
   area_1: [0.11, 0.0, 0.19, 1.0]  # x, y, w, h                    
   area_2: [0.34, 0.0, 0.2, 1.0]
   id_tur: 3

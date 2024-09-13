@@ -14,11 +14,10 @@ headers = {
     "Authorization": "Bearer null"
 }
 
-
 previous_state = {
     'id': -1,
     'direction': 0,
-     'time' :datetime.now()
+    'time': datetime.now()
 }
 
 
@@ -44,10 +43,7 @@ def read_users():  # Получение списка сотрудников
 
 
 def passing(user_id, direction, event_description='Камера'):
-    '''
-    direction 1 на вход 2 на выход  направление  открытие турникета
-    '''
-    url = f'http://{connection_config["host"]}/api/devices/{config["tourniquets"]["id_tur"]}/pass'
+    url = f'http://{connection_config["host"]}/api/devices/{config["turnstiles"]["id_tur"]}/pass'
     payload = {
         "user_id": user_id,
         "direction": direction,
@@ -58,21 +54,20 @@ def passing(user_id, direction, event_description='Камера'):
 
 
 def open_doors(id, direction, user_name):
-    doors = [0,'вход', 'выход']
+    doors = [0, 'entrance', 'exit']
     print_log(f'В {datetime.now().strftime("%D:%H:%M:%S")}  {doors[direction]}  {user_name}! ')
-    #if not (id == previous_state['id'] and direction == previous_state['direction']):
-    time_diff=(datetime.now()-previous_state['time']).total_seconds()
-    if id != previous_state['id'] or time_diff >7:
+    # if not (id == previous_state['id'] and direction == previous_state['direction']):
+    time_diff = (datetime.now() - previous_state['time']).total_seconds()
+    if id != previous_state['id'] or time_diff > 7:
         previous_state['id'] = id
         previous_state['direction'] = direction
         previous_state['time'] = datetime.now()
-        if (passing(int(id), direction, f'камера {direction}') == 'ok'):  # моя откравает проход
+        if (passing(int(id), direction, f'camera {direction}') == 'ok'):  # моя откравает проход
             pass
         else:
-            print_log(f'В {datetime.now().strftime("%D:%H:%M:%S")}   просрочен токен авторизации выходим и заходим снова')
-            exit()  # скорее всего просрочен токен авторизации выходим и заходим снова
-
-    
+            print_log(
+                f'В {datetime.now().strftime("%D:%H:%M:%S")} authorization token is out of date')
+            exit()
 
 
 def read_db1():
@@ -114,13 +109,17 @@ def get_encodings(dict_users, encoded_path):
 
 
 def face_in_area(face_location, area):
-    return area[0] < (face_location[3] + face_location[1]) // 2 < area[2] and area[1] < (
-            face_location[0] + face_location[2]) // 2 < area[3]
+    if config['frame_mode'] == 'center':
+        return area[0] < (face_location[3] + face_location[1]) // 2 < area[2] and area[1] < (
+                face_location[0] + face_location[2]) // 2 < area[3]
+    else:
+        return area[0] < face_location[1] and face_location[3] < area[2] and area[1] < face_location[0] and \
+            face_location[2] < area[3]
+
 
 def print_log(prn_text):
-    o = open(log_file,'a')
+    o = open(log_file, 'a')
     if config['test_mode']:
         print(prn_text)
-    print(prn_text,file=o)
+    print(prn_text, file=o)
     o.close()
- 
