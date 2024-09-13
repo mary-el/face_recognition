@@ -8,15 +8,17 @@ import requests
 from config import config
 
 connection_config = config['connection']
-
+log_file = config['log_file']
 headers = {
     "Content-type": "application/json; charset=UTF-8",
     "Authorization": "Bearer null"
 }
 
+
 previous_state = {
     'id': -1,
-    'direction': 0
+    'direction': 0,
+     'time' :datetime.now()
 }
 
 
@@ -43,9 +45,9 @@ def read_users():  # Получение списка сотрудников
 
 def passing(user_id, direction, event_description='Камера'):
     '''
-    direction=1 for entrance, =2 fo exit
+    direction 1 на вход 2 на выход  направление  открытие турникета
     '''
-    url = f'http://{connection_config["host"]}/api/devices/{config["turnstiles"]["id_tur"]}/pass'
+    url = f'http://{connection_config["host"]}/api/devices/{config["tourniquets"]["id_tur"]}/pass'
     payload = {
         "user_id": user_id,
         "direction": direction,
@@ -55,16 +57,22 @@ def passing(user_id, direction, event_description='Камера'):
     return (json.loads(response.text).get('result'))
 
 
-def open_doors(id, direction, dict_users):
-    doors = ['entrance', 'exit']
-    print(f'В {datetime.now().strftime("%D:%H:%M:%S")}  {doors[direction - 1]}  {dict_users[id]}! ')
-    if not (id == previous_state['id'] and direction == previous_state['direction']):
+def open_doors(id, direction, user_name):
+    doors = [0,'вход', 'выход']
+    print_log(f'В {datetime.now().strftime("%D:%H:%M:%S")}  {doors[direction]}  {user_name}! ')
+    #if not (id == previous_state['id'] and direction == previous_state['direction']):
+    time_diff=(datetime.now()-previous_state['time']).total_seconds()
+    if id != previous_state['id'] or time_diff >7:
         previous_state['id'] = id
         previous_state['direction'] = direction
-        if (passing(int(id), direction, f'camera {direction}') == 'ok'):
+        previous_state['time'] = datetime.now()
+        if (passing(int(id), direction, f'камера {direction}') == 'ok'):  # моя откравает проход
             pass
         else:
-            exit()
+            print_log(f'В {datetime.now().strftime("%D:%H:%M:%S")}   просрочен токен авторизации выходим и заходим снова')
+            exit()  # скорее всего просрочен токен авторизации выходим и заходим снова
+
+    
 
 
 def read_db1():
@@ -108,3 +116,11 @@ def get_encodings(dict_users, encoded_path):
 def face_in_area(face_location, area):
     return area[0] < (face_location[3] + face_location[1]) // 2 < area[2] and area[1] < (
             face_location[0] + face_location[2]) // 2 < area[3]
+
+def print_log(prn_text):
+    o = open(log_file,'a')
+    if config['test_mode']:
+        print(prn_text)
+    print(prn_text,file=o)
+    o.close()
+ 
