@@ -1,5 +1,5 @@
 ## Face Recognition for Smart Entrance Gate
-![изображение](https://github.com/user-attachments/assets/898ac845-e883-4e3c-9ea3-c2a648b13248)
+![img](https://github.com/user-attachments/assets/898ac845-e883-4e3c-9ea3-c2a648b13248)
 
 ---
 
@@ -51,5 +51,14 @@ turnstiles
   + id_tur
 
 **Usage Instructions** 
-1. Run the program with -e parameter to encode images_folder
-2. Run it without parameters
+1. Put user photos in the `images` folder
+2. Create face embeddings:
+```commandline
+python main.py -e
+```
+3. Rename files in `embedding_folder`; you can delete the `images` folder now.
+4. Put in `excel_file` user names with their ids (id = embedding file name) or use a database
+5. Start the program:
+```commandline
+python main.py
+```

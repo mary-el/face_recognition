@@ -2,11 +2,10 @@ import glob
 import os
 import pickle
 
-import face_recognition as fr
 import numpy as np
 import tqdm
-from PIL import Image
 
+import face_recognition as fr
 from config import config
 from utils import face_in_area
 

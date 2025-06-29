@@ -100,6 +100,6 @@ if __name__ == '__main__':
     id_to_encoding = get_encodings(dict_users, config[config['mode']]['embedding_folder'])
 
     print_log(
-        f'started at {datetime.now().strftime("%D:%H:%M:%S")} mode= {config["mode"]} mode_paranoid={mode_paranoid}')
+        f'started at {datetime.now().strftime("%D:%H:%M:%S")} mode={config["mode"]}, mode_paranoid={mode_paranoid}')
     video_capture(id_to_encoding, camera=config['camera'], show=config['show'], dict_users=dict_users,
                   test=config['test_mode'])
