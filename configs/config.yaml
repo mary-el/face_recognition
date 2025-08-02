@@ -4,7 +4,7 @@ excel_file: db.xlsx
 
 images_folder: images
 frame_folder: frame
-no_name_user: undefined
+no_name_user: ???
 
 date_time_format: '%mD%dh%Hm%Ms%S'
 log_file: log.txt
@@ -19,6 +19,10 @@ show:   True
 #test_mode: False
 test_mode: True
 
+embedding_folder: facenet_embeddings
+threshold: 1.
+
+
 connection:
   host: 192.168.0.19
   login: api
@@ -30,9 +34,6 @@ face-recognition:
   tolerance: 0.51
 
 facenet:
-  embedding_folder: facenet_embeddings
-  threshold: 1.
-
 turnstiles:
   area_1: [0.11, 0.0, 0.19, 1.0]  # x, y, w, h                    
   area_2: [0.34, 0.0, 0.2, 1.0]

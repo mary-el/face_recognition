@@ -4,8 +4,13 @@ from datetime import datetime
 
 import pandas as pd
 import requests
+from enum import Enum
 
-from config import config
+class DoorState(Enum):
+    CLOSED = 0
+    EXIT = 1
+    ENTRANCE = 2
+
 
 connection_config = config['connection']
 log_file = config['log_file']
@@ -95,26 +100,6 @@ def read_excel(file):
     user_dict = {ind: name for ind, name in df.values}
     return user_dict
 
-
-def get_encodings(dict_users, encoded_path):
-    id_to_encoding = {}
-    for id in dict_users.keys():
-        if id == 0:
-            continue
-        path = f'{encoded_path}/{id}'
-        with open(path, 'rb') as file:
-            encoding = pickle.load(file)
-        id_to_encoding[id] = encoding
-    return id_to_encoding
-
-
-def face_in_area(face_location, area):
-    if config['frame_mode'] == 'center':
-        return area[0] < (face_location[3] + face_location[1]) // 2 < area[2] and area[1] < (
-                face_location[0] + face_location[2]) // 2 < area[3]
-    else:
-        return area[0] < face_location[1] and face_location[3] < area[2] and area[1] < face_location[0] and \
-            face_location[2] < area[3]
 
 
 def print_log(prn_text):

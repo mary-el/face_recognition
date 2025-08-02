@@ -6,8 +6,7 @@ import numpy as np
 import tqdm
 
 import face_recognition as fr
-from config import config
-from utils import face_in_area
+from src.utils import face_in_area
 
 
 def encode_image(image, known_location=None):

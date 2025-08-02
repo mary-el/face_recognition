@@ -13,11 +13,11 @@ from utils import set_headers, open_doors, read_db, read_excel, get_encodings, p
 date_time_format = config['date_time_format']
 
 if config['mode'] == 'face-recognition':
-    from modes.face_recognition import encode_folder, search_for_faces
+    from engines.face_recognition import encode_folder, search_for_faces
 
     mode_paranoid = config[config['mode']]['tolerance']
 elif config['mode'] == 'facenet':
-    from modes.facenet import encode_folder, search_for_faces
+    from engines.facenet import encode_folder, search_for_faces
 
     mode_paranoid = config[config['mode']]['threshold']
 else:
@@ -96,6 +96,7 @@ if __name__ == '__main__':
     else:
         set_headers()
         dict_users = read_db()
+
     dict_users[0] = config['no_name_user']
     id_to_encoding = get_encodings(dict_users, config[config['mode']]['embedding_folder'])
 
