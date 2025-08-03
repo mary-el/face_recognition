@@ -1,4 +1,4 @@
-from src.utils import set_headers, read_db, read_excel
+from src.utils import read_excel, get_connection
 import pickle
 
 class FaceEngine:
@@ -24,8 +24,8 @@ class FaceEngine:
         if self.config['source'] == 'excel':
             users = read_excel(self.config['excel_file'])
         else:
-            set_headers()
-            users = read_db()
+            connection = get_connection(self.config)
+            users = connection.read_users()
         users[0] = self.config['no_name_user']
         return users
 

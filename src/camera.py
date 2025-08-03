@@ -1,28 +1,31 @@
-import argparse
+import time
 from datetime import datetime
 
 import cv2
 
-from config import config
 
-area_1 = config['turnstiles']['area_1']
-area_2 = config['turnstiles']['area_2']
+class Camera:
+    def __init__(self, config):
+        self.config = config
+        self.camera_config = config["camera"]
+        cap = cv2.VideoCapture(self.camera_config["id"])
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        _, frame = cap.read()
+        self.frame_width, self.frame_height = frame.shape[1] / config["reduce_frame"], frame.shape[0] / config[
+            "reduce_frame"]
+        self.frame = None
 
-from utils import set_headers, open_doors, read_db, read_excel, get_encodings, print_log
+    def video_capture(self):
+        cap = cv2.VideoCapture(0)
+        return cap.read()
 
-date_time_format = config['date_time_format']
-
-if config['mode'] == 'face-recognition':
-    from engines.face_recognition import encode_folder, search_for_faces
-
-    mode_paranoid = config[config['mode']]['tolerance']
-elif config['mode'] == 'facenet':
-    from engines.facenet import encode_folder, search_for_faces
-
-    mode_paranoid = config[config['mode']]['threshold']
-else:
-    print_log(f'Unsupported mode: {config["mode"]}')
-    exit()
+    def generate(self):
+        while True:
+            if self.frame is not None:
+                _, jpeg = cv2.imencode('.jpg', self.frame)
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
+            time.sleep(0.03)
 
 
 def show_recognized_faces(frame, face_locations, recognized_ids, reduce_frame, left_area, right_area):
@@ -80,27 +83,3 @@ def video_capture(id_to_encoding, camera, dict_users, reduce_frame=2, show=True,
     # Release camera and close windows
     cap.release()
     cv2.destroyAllWindows()
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(prog='Face recognition')
-    parser.add_argument('-e', '--encode', action="store_true")
-    args = parser.parse_args()
-
-    if args.encode:
-        encode_folder()
-        exit()
-
-    if config['source'] == 'excel':
-        dict_users = read_excel(config['excel_file'])
-    else:
-        set_headers()
-        dict_users = read_db()
-
-    dict_users[0] = config['no_name_user']
-    id_to_encoding = get_encodings(dict_users, config[config['mode']]['embedding_folder'])
-
-    print_log(
-        f'started at {datetime.now().strftime("%D:%H:%M:%S")} mode={config["mode"]}, mode_paranoid={mode_paranoid}')
-    video_capture(id_to_encoding, camera=config['camera'], show=config['show'], dict_users=dict_users,
-                  test=config['test_mode'])

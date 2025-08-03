@@ -1,40 +1,38 @@
-camera: 0
 source: excel
 excel_file: db.xlsx
 
 images_folder: images
-frame_folder: frame
 no_name_user: ???
 
 date_time_format: '%mD%dh%Hm%Ms%S'
 log_file: log.txt
-frame_mode: full
 
 mode: facenet
-#mode: face-recognition
-
-#show:  False
-show:   True
-
-#test_mode: False
 test_mode: True
 
 embedding_folder: facenet_embeddings
 threshold: 1.
-
 
 connection:
   host: 192.168.0.19
   login: api
   password: 1q2w3e4R
 
+camera:
+  id: 0
+  frame_folder: frame
+  frame_mode: full
+  show: True
+
 face-recognition:
   embedding_folder: fr_embeddings
   num_jitters: 5
   tolerance: 0.51
+  reduce_frame: 2
 
 facenet:
 turnstiles:
   area_1: [0.11, 0.0, 0.19, 1.0]  # x, y, w, h                    
   area_2: [0.34, 0.0, 0.2, 1.0]
   id_tur: 3
+  min_time_diff: 7
