@@ -12,8 +12,8 @@ from src.engines.base import FaceEngine
 from src.utils import DoorState
 
 class FacenetEngine(FaceEngine):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, config, users, camera):
+        super().__init__(config, users, camera)
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         self.resnet = InceptionResnetV1(pretrained='vggface2').to(self.device).eval()   # face embedding model
 
@@ -54,18 +54,13 @@ class FacenetEngine(FaceEngine):
 
 
     def detect_faces(self, frame: np.ndarray):
-        exit_area, entrance_area = self.get_frame_areas(frame)
-        recognized_names = []
-        door_state = DoorState.CLOSED
-        open_name = None
-
         face_locations, _ = self.mtcnn.detect(frame, landmarks=False)
         if face_locations is None or len(face_locations) == 0:  # no faces found
-            return [], [], door_state, open_name
+            return [], []
         try:
             faces = self.mtcnn.extract(frame, face_locations, save_path='faces/temp.jpg')
         except:
-            return [], [], door_state, open_name
+            return [], []
 
         face_locations = np.array(face_locations)
         face_locations[:, [0, 1, 2, 3]] = face_locations[:, [1, 0, 3, 2]]
@@ -75,20 +70,14 @@ class FacenetEngine(FaceEngine):
 
         user_ids = list(self.embeddings.keys())
         embeddings = list(self.embeddings.values())
-        open_id = 0
+        recognized_ids = []
 
         for i, face_embedding in enumerate(img_embeddings):
-            idx = 0
             best_match_index = self.get_best_match_idx(embeddings, face_embedding)    # getting matches for each found face
+            idx = 0
 
             if best_match_index is not None:
                 idx = user_ids[best_match_index]
-                if self.face_in_area(face_locations[i], exit_area):
-                    open_id = idx
-                    door_state = DoorState.EXIT
-                elif self.face_in_area(face_locations[i], entrance_area):
-                    open_id = idx
-                    door_state = DoorState.ENTRANCE
-            recognized_names.append(self.users[idx])
+            recognized_ids.append(idx)
 
-        return recognized_names, face_locations, door_state, self.users[open_id]
+        return recognized_ids, face_locations

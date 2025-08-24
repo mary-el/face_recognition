@@ -87,7 +87,7 @@ class Connection:
         response = requests.request("post", url, json=payload, headers=self.headers)
         return (json.loads(response.text).get('result'))
 
-    def open_doors(self, id, direction: DoorState, user_name):
+    def open_doors(self, id, direction: DoorState, user_name: str):
         logger.info(f'{self.directions[direction]} door opened for {user_name}')
         time_diff = (datetime.now() - self.previous_state['time']).total_seconds()
 
@@ -112,3 +112,12 @@ def read_excel(file):
     df = pd.read_excel(file)
     user_dict = {ind: name for ind, name in df.values}
     return user_dict
+
+def load_users(config):   # loading users' names and ids
+    if config['source'] == 'excel':
+        users = read_excel(config['excel_file'])
+    else:
+        connection = get_connection(config)
+        users = connection.read_users()
+    users[0] = config['no_name_user']
+    return users

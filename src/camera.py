@@ -1,85 +1,153 @@
 import time
-from datetime import datetime
 
 import cv2
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
+from tenacity import retry, stop_after_attempt, wait_fixed
+
+from src.utils import DoorState
+
+STOP_AFTER_ATTEMPT = 100
+WAIT = 0.1
 
 
 class Camera:
     def __init__(self, config):
         self.config = config
         self.camera_config = config["camera"]
-        cap = cv2.VideoCapture(self.camera_config["id"])
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        _, frame = cap.read()
-        self.frame_width, self.frame_height = frame.shape[1] / config["reduce_frame"], frame.shape[0] / config[
-            "reduce_frame"]
-        self.frame = None
+        self.camera_id = self.camera_config["id"]
+        self.reduce_frame = self.camera_config["reduce_frame"]
+        self.cap = cv2.VideoCapture(self.camera_id)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
+        self.frame = None
+        self.show_frame = None
+        self.video_capture()
+        self.exit_area, self.entrance_area, self.frame_width, self.frame_height = self.get_frame_areas()
+
+    @retry(wait=wait_fixed(WAIT), stop=stop_after_attempt(STOP_AFTER_ATTEMPT))  # retry if attempt failed
     def video_capture(self):
-        cap = cv2.VideoCapture(0)
-        return cap.read()
+        ret, new_frame = self.cap.read()
+        if ret:
+            self.frame = new_frame
+        else:
+            raise IOError("Camera is not available")
+        return ret, new_frame
 
     def generate(self):
         while True:
-            if self.frame is not None:
-                _, jpeg = cv2.imencode('.jpg', self.frame)
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
-            time.sleep(0.03)
-
-
-def show_recognized_faces(frame, face_locations, recognized_ids, reduce_frame, left_area, right_area):
-    cv2.rectangle(frame, (left_area[0] * reduce_frame, left_area[1] * reduce_frame),
-                  (left_area[2] * reduce_frame, left_area[3] * reduce_frame), (0, 255, 255), 2)
-    cv2.rectangle(frame, (right_area[0] * reduce_frame, right_area[1] * reduce_frame),
-                  (right_area[2] * reduce_frame, right_area[3] * reduce_frame), (255, 0, 0), 2)
-    for (top, left, bottom, right), id in zip(face_locations, recognized_ids):
-        # Scale back up face locations since the frame we detected in was scaled to 1/4 size
-        top, right, bottom, left = [int(x * reduce_frame) for x in (top, right, bottom, left)]
-        # Draw a box around the face
-        cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
-
-        # Draw a label with a name below the face
-        cv2.rectangle(frame, (left, bottom - 35), (right, bottom), (0, 0, 255), cv2.FILLED)
-        font = cv2.FONT_HERSHEY_COMPLEX
-        cv2.putText(frame,
-                    dict_users[id],
-                    (left + 6, bottom - 6), font, 0.5,
-                    (255, 255, 255), 1)
-    return frame
-
-
-def video_capture(id_to_encoding, camera, dict_users, reduce_frame=2, show=True, test=False):
-    cap = cv2.VideoCapture(camera)
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-    _, frame = cap.read()
-    width, height = frame.shape[1] / reduce_frame, frame.shape[0] / reduce_frame
-    left_area = [int(area_1[0] * width), int(area_1[1] * height), int((area_1[0] + area_1[2]) * width),
-                 int((area_1[1] + area_1[3]) * height)]
-    right_area = [int(area_2[0] * width), int(area_2[1] * height), int((area_2[0] + area_2[2]) * width),
-                  int((area_2[1] + area_2[3]) * height)]
-    stop = False
-    while not stop:
-        ret, frame = cap.read()
-        small_frame = cv2.resize(frame, (0, 0), fx=1 / reduce_frame, fy=1 / reduce_frame)
-
-        recognized_ids, face_locations, open_door, user_ind = search_for_faces(id_to_encoding, small_frame, left_area,
-                                                                               right_area)
-        if open_door != -1:
-            if test:
-                print(f'Door #{open_door} opened for {", ".join(dict_users[i] for i in recognized_ids if i != 0)}')
+            if self.show_frame is not None:
+                _, jpeg = cv2.imencode('.jpg', self.show_frame)
             else:
-                open_doors(user_ind, open_door, dict_users[user_ind])
-            file_name = f'./{config["frame_folder"]}/{datetime.now().strftime(date_time_format)}_Id{user_ind}_direct{open_door}.jpg'
-            cv2.imwrite(file_name, show_recognized_faces(frame, face_locations, recognized_ids, reduce_frame, left_area,
-                                                         right_area))
+                _, jpeg = cv2.imencode('.jpg', np.ndarray((3, 3, 3)))
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
 
-        if show:
-            cv2.imshow('Face recognition',
-                       show_recognized_faces(frame, face_locations, recognized_ids, reduce_frame, left_area,
-                                             right_area))
-        if cv2.waitKey(1) == 13:  # 13 is the Enter Key
-            stop = True
-    # Release camera and close windows
-    cap.release()
-    cv2.destroyAllWindows()
+    def get_frame_areas(self):  # get entrance and exit areas coordinates
+        area_1 = self.config['turnstiles']['area_1']
+        area_2 = self.config['turnstiles']['area_2']
+
+        frame_width, frame_height = (self.frame.shape[1] / self.reduce_frame,
+                                     self.frame.shape[0] / self.reduce_frame)
+
+        exit_area = [int(area_1[0] * frame_width), int(area_1[1] * frame_height),
+                     int((area_1[0] + area_1[2]) * frame_width),
+                     int((area_1[1] + area_1[3]) * frame_height)]
+        entrance_area = [int(area_2[0] * frame_width), int(area_2[1] * frame_height),
+                         int((area_2[0] + area_2[2]) * frame_width),
+                         int((area_2[1] + area_2[3]) * frame_height)]
+
+        return exit_area, entrance_area, frame_width, frame_height
+
+    def face_in_area(self, face_location, area):
+        if self.camera_config['frame_mode'] == 'center':
+            return area[0] < (face_location[3] + face_location[1]) // 2 < area[2] and area[1] < (
+                    face_location[0] + face_location[2]) // 2 < area[3]
+        else:
+            return area[0] < face_location[1] and face_location[3] < area[2] and area[1] < face_location[0] and \
+                face_location[2] < area[3]
+
+    def check_areas(self, face_locations):
+        for i in range(len(face_locations)):
+            if self.face_in_area(face_locations[i], self.exit_area):
+                return i, DoorState.EXIT
+            elif self.face_in_area(face_locations[i], self.entrance_area):
+                return i, DoorState.ENTRANCE
+        return None, DoorState.CLOSED
+
+    def show(self, face_locations, recognized_ids, users):
+        # convert BGR -> RGB PIL
+        img = Image.fromarray(self.frame[:, :, ::-1].copy()).convert("RGB")
+
+        img = self.draw_box(img, self.exit_area, label='Exit', color='red')
+        img = self.draw_box(img, self.entrance_area, label='Entrance', color='green')
+
+        for user_id, box in zip(recognized_ids, face_locations):
+            user_name = users[user_id]
+            img = self.draw_box(img, box, label=user_name)
+
+        self.show_frame = np.asarray(img)[:, :, ::-1]
+
+    def draw_box(
+            self,
+            image: np.ndarray,
+            box,
+            label=None,
+            color=(66, 133, 244),  # nice blue
+            outline=3,  # outline width
+            radius=12,  # corner radius
+            label_text_color=(255, 255, 255),
+            font_path=None,  # e.g. "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+            font_size=16
+    ):
+        """
+        Draws pretty rounded boxes + label pills on top of image (OpenCV-style).
+        """
+
+        # overlay for semi-transparency
+        draw = ImageDraw.Draw(image, "RGB")
+
+        # optional font
+        try:
+            font = ImageFont.truetype(font_path, font_size) if font_path else ImageFont.load_default()
+        except Exception:
+            font = ImageFont.load_default()
+
+        x1, y1, x2, y2 = [coord * self.reduce_frame for coord in box]
+
+        # --- filled rounded rect ---
+        draw.rounded_rectangle(
+            [x1, y1, x2, y2],
+            radius=radius,
+            fill=color,
+            outline=color,
+            width=outline
+        )
+
+        # --- label pill (optional) ---
+        if label is not None:
+            # text size
+            tw, th = draw.textbbox((0, 0), label, font=font)[2:]
+            pad_x, pad_y = 8, 4
+            pill_h = th + 2 * pad_y
+            pill_w = tw + 2 * pad_x
+            pill_x1, pill_y1 = x1, max(y1 - pill_h - 6, 2)
+            pill_x2, pill_y2 = pill_x1 + pill_w, pill_y1 + pill_h
+
+            # pill background
+            draw.rounded_rectangle(
+                [pill_x1, pill_y1, pill_x2, pill_y2],
+                radius=int(pill_h / 2),
+                fill=color
+            )
+            # text
+            draw.text(
+                (pill_x1 + pad_x, pill_y1 + pad_y),
+                label, font=font, fill=label_text_color
+            )
+
+        return image
+
+    def release(self):
+        self.cap.release()
+        cv2.destroyAllWindows()

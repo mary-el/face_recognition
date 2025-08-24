@@ -1,10 +1,10 @@
 from src.engines import FaceEngine, FacenetEngine
 
-def get_engine(config) -> FaceEngine:
+def get_engine(config, users, camera) -> FaceEngine:
     mode = config["mode"]
 
     if mode == "facenet":
-        return FacenetEngine(config)
+        return FacenetEngine(config, users, camera)
     elif mode == "face_recognition":
         raise NotImplementedError()
     else:

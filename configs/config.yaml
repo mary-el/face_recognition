@@ -9,9 +9,7 @@ log_file: log.txt
 
 mode: facenet
 test_mode: True
-
 embedding_folder: facenet_embeddings
-threshold: 1.
 
 connection:
   host: 192.168.0.19
@@ -23,14 +21,16 @@ camera:
   frame_folder: frame
   frame_mode: full
   show: True
-
-face-recognition:
-  embedding_folder: fr_embeddings
-  num_jitters: 5
-  tolerance: 0.51
   reduce_frame: 2
 
+face-recognition:
+  num_jitters: 5
+  tolerance: 0.51
+
 facenet:
+  threshold: 1.
+
+
 turnstiles:
   area_1: [0.11, 0.0, 0.19, 1.0]  # x, y, w, h                    
   area_2: [0.34, 0.0, 0.2, 1.0]
