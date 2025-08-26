@@ -1,5 +1,3 @@
-import time
-
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -7,7 +5,7 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 
 from src.utils import DoorState
 
-STOP_AFTER_ATTEMPT = 100
+STOP_AFTER_ATTEMPT = 200
 WAIT = 0.1
 
 
@@ -20,26 +18,29 @@ class Camera:
         self.cap = cv2.VideoCapture(self.camera_id)
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
+        self.frame_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH) / self.reduce_frame)
+        self.frame_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT) / self.reduce_frame)
+
         self.frame = None
         self.show_frame = None
         self.video_capture()
-        self.exit_area, self.entrance_area, self.frame_width, self.frame_height = self.get_frame_areas()
+        self.exit_area, self.entrance_area = self.get_frame_areas()
 
     @retry(wait=wait_fixed(WAIT), stop=stop_after_attempt(STOP_AFTER_ATTEMPT))  # retry if attempt failed
     def video_capture(self):
         ret, new_frame = self.cap.read()
         if ret:
-            self.frame = new_frame
+            self.frame = cv2.resize(new_frame, (self.frame_width, self.frame_height))
         else:
             raise IOError("Camera is not available")
-        return ret, new_frame
+        return ret, self.frame
 
     def generate(self):
         while True:
             if self.show_frame is not None:
                 _, jpeg = cv2.imencode('.jpg', self.show_frame)
             else:
-                _, jpeg = cv2.imencode('.jpg', np.ndarray((3, 3, 3)))
+                _, jpeg = cv2.imencode('.jpg', np.ndarray((3, 3, 3), dtype=np.uint8))
             yield (b'--frame\r\n'
                    b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
 
@@ -47,28 +48,27 @@ class Camera:
         area_1 = self.config['turnstiles']['area_1']
         area_2 = self.config['turnstiles']['area_2']
 
-        frame_width, frame_height = (self.frame.shape[1] / self.reduce_frame,
-                                     self.frame.shape[0] / self.reduce_frame)
+        exit_area = [int(area_1[0] * self.frame_width), int(area_1[1] * self.frame_height),
+                     int((area_1[0] + area_1[2]) * self.frame_width),
+                     int((area_1[1] + area_1[3]) * self.frame_height)]
+        entrance_area = [int(area_2[0] * self.frame_width), int(area_2[1] * self.frame_height),
+                         int((area_2[0] + area_2[2]) * self.frame_width),
+                         int((area_2[1] + area_2[3]) * self.frame_height)]
 
-        exit_area = [int(area_1[0] * frame_width), int(area_1[1] * frame_height),
-                     int((area_1[0] + area_1[2]) * frame_width),
-                     int((area_1[1] + area_1[3]) * frame_height)]
-        entrance_area = [int(area_2[0] * frame_width), int(area_2[1] * frame_height),
-                         int((area_2[0] + area_2[2]) * frame_width),
-                         int((area_2[1] + area_2[3]) * frame_height)]
-
-        return exit_area, entrance_area, frame_width, frame_height
+        return exit_area, entrance_area
 
     def face_in_area(self, face_location, area):
         if self.camera_config['frame_mode'] == 'center':
-            return area[0] < (face_location[3] + face_location[1]) // 2 < area[2] and area[1] < (
-                    face_location[0] + face_location[2]) // 2 < area[3]
+            return area[0] < (face_location[0] + face_location[2]) // 2 < area[2] and area[1] < (
+                    face_location[1] + face_location[3]) // 2 < area[3]
         else:
-            return area[0] < face_location[1] and face_location[3] < area[2] and area[1] < face_location[0] and \
-                face_location[2] < area[3]
+            return area[0] < face_location[0] and face_location[3] < area[3] and area[1] < face_location[1] and \
+                face_location[2] < area[2]
 
-    def check_areas(self, face_locations):
+    def check_areas(self, face_locations, user_ids):
         for i in range(len(face_locations)):
+            if user_ids[i] == 0:
+                continue
             if self.face_in_area(face_locations[i], self.exit_area):
                 return i, DoorState.EXIT
             elif self.face_in_area(face_locations[i], self.entrance_area):
@@ -83,6 +83,8 @@ class Camera:
         img = self.draw_box(img, self.entrance_area, label='Entrance', color='green')
 
         for user_id, box in zip(recognized_ids, face_locations):
+            if user_id not in users:
+                user_id = 0
             user_name = users[user_id]
             img = self.draw_box(img, box, label=user_name)
 
@@ -113,13 +115,13 @@ class Camera:
         except Exception:
             font = ImageFont.load_default()
 
-        x1, y1, x2, y2 = [coord * self.reduce_frame for coord in box]
+        x1, y1, x2, y2 = box
 
         # --- filled rounded rect ---
         draw.rounded_rectangle(
             [x1, y1, x2, y2],
             radius=radius,
-            fill=color,
+            fill=None,
             outline=color,
             width=outline
         )
@@ -138,7 +140,7 @@ class Camera:
             draw.rounded_rectangle(
                 [pill_x1, pill_y1, pill_x2, pill_y2],
                 radius=int(pill_h / 2),
-                fill=color
+                fill=None
             )
             # text
             draw.text(

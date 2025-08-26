@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Camera</title>
+    <style>
+    h1 {text-align: center;}
+    div {text-align: center;}
+    </style>
+    <script>
+        async function uploadConfig(event) {
+            event.preventDefault()
+
+            const formData = new FormData(document.getElementById("configForm"));
+            try {
+            const response = await fetch("/config", {
+                method: "POST",
+                body: formData
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+                alert("❌ Error: " + result.detail);
+            } else {
+                alert("✅ Config updated: " + result.filename);
+            }
+            } catch (err) {
+            alert("⚠️ Failed to upload: " + err);
+        }
+        }
+
+        async function synchronize(event) {
+            event.preventDefault()
+            try {
+            const response = await fetch("/sync", {
+                method: "POST",
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+                alert("❌ Error: " + result.detail);
+            } else {
+                alert("✅ Data synchronized");
+            }
+            } catch (err) {
+            alert("⚠️ Failed to upload: " + err);
+        }
+        }
+    </script>
+</head>
+<body>
+    <h1>Live Camera Stream</h1>
+    <div>
+        <img src="{{ url_for('video_feed') }}">
+    </div>
+    <div>
+        <h2>Upload Config File</h2>
+        <form id="configForm" onsubmit="uploadConfig(event)" enctype="multipart/form-data">
+            <input type="file" name="config_file" accept=".yaml,.yml" required>
+            <button type="submit">Upload</button>
+        </form>
+        <form id="syncForm" onsubmit="synchronize(event)" enctype="multipart/form-data">
+            <button type="submit">Synchronize</button>
+        </form>
+    </form>
+    </div>
+</body>
+</html>
