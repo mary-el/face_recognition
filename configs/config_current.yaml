@@ -20,7 +20,6 @@ camera:
   id: 0
   frame_folder: frame
   frame_mode: full
-  show: True
   reduce_frame: 1
 
 face-recognition:

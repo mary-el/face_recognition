@@ -7,6 +7,7 @@
 - This project integrates face recognition technology to facilitate a secure and efficient entry process for the
 local university in my hometown. It identifies students as they approach through live video feed from an entrance camera system and, upon successful
 identification within our database of known faces, one designated turnstile will open to grant access.
+- Now with web-interface
 
 
 **Privacy & Security Measures**
@@ -17,11 +18,10 @@ identification within our database of known faces, one designated turnstile will
 turnstiles
 - Face Recognition Algorithms Selection: Enables users to choose between different methods for face recognition
   Now available:
-  * face-recognition
+  * ~~face-recognition~~
   * facenet
 
 **config.yaml**
-* camera: camera IP \ 0 for default camera
 * source: excel \ db
 * excel_file: excel file path if source == excel
 * images_folder: folder with photos of users
@@ -29,7 +29,10 @@ turnstiles
 * no_name_user: how unknown people are labelled
 * show: True \ False - show camera input on screen
 * test_mode: True \ False - in test mode the turnstiles do not work
-* frame_mode: full \ center - how frames face is located relately to the camera areas 
+
+* camera 
+  + id: camera IP \ 0 for default camera
+  + frame_mode: full \ center - how frames face is located relately to the camera areas 
 
 * connection:
   + host: IP of the host, responsible for the turnstile opening
@@ -52,13 +55,11 @@ turnstiles
 
 **Usage Instructions** 
 1. Put user photos in the `images` folder
-2. Create face embeddings:
+2. Put in `excel_file` user names with their ids (id = embedding file name) or use a database
+3. Run the program:
 ```commandline
-python main.py -e
+uvicorn main:app --host HOST --port PORT --reload 
 ```
-3. Rename files in `embedding_folder`; you can delete the `images` folder now.
-4. Put in `excel_file` user names with their ids (id = embedding file name) or use a database
-5. Start the program:
-```commandline
-python main.py
-```
+4. Open PORT:HOST in your browser
+5. To update config, use the "Upload" button
+6. To add new users,  use "Synchronize" button
