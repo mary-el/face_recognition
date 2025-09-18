@@ -60,6 +60,7 @@ turnstiles
 ```commandline
 uvicorn main:app --host HOST --port PORT --reload 
 ```
-4. Open PORT:HOST in your browser
+4. Open HOST:PORT in your browser
 5. To update config, use the "Upload" button
 6. To add new users,  use "Synchronize" button
+7. To exit, press `Ctrl + C`

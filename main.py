@@ -1,5 +1,5 @@
+import signal
 import threading
-import time
 from contextlib import asynccontextmanager
 from typing import Dict
 
@@ -23,22 +23,24 @@ connection: Connection
 camera: Camera
 users: Dict[str, str]  # user ID -> name
 logger = None
+stop_event = threading.Event()  # graceful shutdown event
+thread = None
 
 
 def init(config):
-    global face_engine, camera, connection, users, logger
+    global face_engine, camera, connection, users, logger, stop_event
 
     logger = setup_logger(config)
     logger.info(f"Updating config")
     connection = Connection(config)
     users = load_users(config)
-    camera = Camera(config)
+    camera = Camera(config, stop_event)
     face_engine = get_engine(config, users, camera)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global config
+    global config, stop_event, thread
 
     with open(CONFIG_FILE, "r") as file:
         config = yaml.safe_load(file)
@@ -49,14 +51,30 @@ async def lifespan(app: FastAPI):
     try:
         yield
     finally:
-        camera.release()
+        logger.info("App stopped")
 
 
 app = FastAPI(lifespan=lifespan)
 
 
+def handle_exit(*args):
+    global stop_event, thread, camera
+
+    logger.info("Shutting down...")
+    stop_event.set()
+    if thread and thread.is_alive():
+        thread.join(timeout=2)
+    if camera:
+        camera.release()
+
+    orig_handler(*args)
+
+
+orig_handler = signal.signal(signal.SIGINT, handle_exit)
+
+
 def capture_loop():
-    while True:
+    while not stop_event.is_set():
         ret, new_frame = camera.video_capture()
         if ret:
             frame = new_frame
@@ -69,7 +87,7 @@ def capture_loop():
                 else:
                     connection.open_doors(user_ids[open_n], door_state, users[user_ids[open_n]])
             camera.show(face_locations, user_ids, users)
-        time.sleep(0.01)
+    logger.info("Loop exited")
 
 
 @app.get("/", response_class=HTMLResponse)

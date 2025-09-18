@@ -1,3 +1,5 @@
+import time
+
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -10,13 +12,14 @@ WAIT = 0.1
 
 
 class Camera:
-    def __init__(self, config):
+    def __init__(self, config, stop_event):
         self.config = config
         self.camera_config = config["camera"]
         self.camera_id = self.camera_config["id"]
         self.reduce_frame = self.camera_config["reduce_frame"]
         self.cap = cv2.VideoCapture(self.camera_id)
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        self.stop_event = stop_event
 
         self.frame_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH) / self.reduce_frame)
         self.frame_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT) / self.reduce_frame)
@@ -36,13 +39,17 @@ class Camera:
         return ret, self.frame
 
     def generate(self):
-        while True:
-            if self.show_frame is not None:
-                _, jpeg = cv2.imencode('.jpg', self.show_frame)
-            else:
-                _, jpeg = cv2.imencode('.jpg', np.ndarray((3, 3, 3), dtype=np.uint8))
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
+        try:
+            while not self.stop_event.is_set():
+                if self.show_frame is not None:
+                    _, jpeg = cv2.imencode('.jpg', self.show_frame)
+                else:
+                    _, jpeg = cv2.imencode('.jpg', np.ndarray((3, 3, 3), dtype=np.uint8))
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
+                time.sleep(0.05)
+        except GeneratorExit:
+            pass
 
     def get_frame_areas(self):  # get entrance and exit areas coordinates
         area_1 = self.config['turnstiles']['area_1']
@@ -116,6 +123,10 @@ class Camera:
             font = ImageFont.load_default()
 
         x1, y1, x2, y2 = box
+        x1 = np.clip(x1, 0, self.frame_width)
+        x2 = np.clip(x2, 0, self.frame_width)
+        y1 = np.clip(y1, 0, self.frame_height)
+        y2 = np.clip(y2, 0, self.frame_height)
 
         # --- filled rounded rect ---
         draw.rounded_rectangle(
@@ -151,5 +162,6 @@ class Camera:
         return image
 
     def release(self):
-        self.cap.release()
-        cv2.destroyAllWindows()
+        if self.cap:
+            self.cap.release()
+        self.cap = None
