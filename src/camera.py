@@ -128,6 +128,9 @@ class Camera:
         y1 = np.clip(y1, 0, self.frame_height)
         y2 = np.clip(y2, 0, self.frame_height)
 
+        if x1 >= x2 or y1 >= y2:
+            return image
+
         # --- filled rounded rect ---
         draw.rounded_rectangle(
             [x1, y1, x2, y2],
