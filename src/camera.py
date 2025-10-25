@@ -12,13 +12,15 @@ WAIT = 0.1
 
 
 class Camera:
+    """Camera handler for video capture and frame processing"""
+    
     def __init__(self, config, stop_event):
         self.config = config
         self.camera_config = config["camera"]
         self.camera_id = self.camera_config["id"]
         self.reduce_frame = self.camera_config["reduce_frame"]
         self.cap = cv2.VideoCapture(self.camera_id)
-        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimal buffer for low latency
         self.stop_event = stop_event
 
         self.frame_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH) / self.reduce_frame)
@@ -51,9 +53,10 @@ class Camera:
         except GeneratorExit:
             pass
 
-    def get_frame_areas(self):  # get entrance and exit areas coordinates
-        area_1 = self.config['turnstiles']['area_1']
-        area_2 = self.config['turnstiles']['area_2']
+    def get_frame_areas(self):
+        """Convert relative areas to absolute pixel coordinates"""
+        area_1 = self.config['turnstiles']['area_1']  # Exit area [x, y, w, h]
+        area_2 = self.config['turnstiles']['area_2']  # Entrance area [x, y, w, h]
 
         exit_area = [int(area_1[0] * self.frame_width), int(area_1[1] * self.frame_height),
                      int((area_1[0] + area_1[2]) * self.frame_width),
@@ -65,16 +68,21 @@ class Camera:
         return exit_area, entrance_area
 
     def face_in_area(self, face_location, area):
+        """Check if face is within specified area (center or full containment)"""
         if self.camera_config['frame_mode'] == 'center':
-            return area[0] < (face_location[0] + face_location[2]) // 2 < area[2] and area[1] < (
-                    face_location[1] + face_location[3]) // 2 < area[3]
+            # Check if face center is within area
+            center_x = (face_location[0] + face_location[2]) // 2
+            center_y = (face_location[1] + face_location[3]) // 2
+            return area[0] < center_x < area[2] and area[1] < center_y < area[3]
         else:
-            return area[0] < face_location[0] and face_location[3] < area[3] and area[1] < face_location[1] and \
-                face_location[2] < area[2]
+            # Check full containment
+            return (area[0] < face_location[0] and face_location[3] < area[3] and
+                    area[1] < face_location[1] and face_location[2] < area[2])
 
     def check_areas(self, face_locations, user_ids):
+        """Check which area contains recognized faces and return door action"""
         for i in range(len(face_locations)):
-            if user_ids[i] == 0:
+            if user_ids[i] == 0:  # Skip unrecognized faces
                 continue
             if self.face_in_area(face_locations[i], self.exit_area):
                 return i, DoorState.EXIT
@@ -83,12 +91,14 @@ class Camera:
         return None, DoorState.CLOSED
 
     def show(self, face_locations, recognized_ids, users):
-        # convert BGR -> RGB PIL
+        """Render frame with bounding boxes and labels"""
         img = Image.fromarray(self.frame[:, :, ::-1].copy()).convert("RGB")
 
+        # Draw area boundaries
         img = self.draw_box(img, self.exit_area, label='Exit', color='red')
         img = self.draw_box(img, self.entrance_area, label='Entrance', color='green')
 
+        # Draw face boxes with names
         for user_id, box in zip(recognized_ids, face_locations):
             if user_id not in users:
                 user_id = 0
@@ -123,11 +133,20 @@ class Camera:
             font = ImageFont.load_default()
 
         x1, y1, x2, y2 = box
+        
+        # Ensure coordinates are valid before clipping
+        if x1 > x2:
+            x1, x2 = x2, x1
+        if y1 > y2:
+            y1, y2 = y2, y1
+            
+        # Clip coordinates to frame boundaries
         x1 = np.clip(x1, 0, self.frame_width)
         x2 = np.clip(x2, 0, self.frame_width)
         y1 = np.clip(y1, 0, self.frame_height)
         y2 = np.clip(y2, 0, self.frame_height)
 
+        # Check if rectangle is still valid after clipping
         if x1 >= x2 or y1 >= y2:
             return image
 

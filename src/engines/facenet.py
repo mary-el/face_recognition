@@ -13,21 +13,27 @@ from src.engines.base import FaceEngine
 
 class FacenetEngine(FaceEngine):
     def __init__(self, config, users, camera):
+        """Initialize FaceNet engine with MTCNN detector and InceptionResNetV1 embedder"""
         super().__init__(config, users, camera)
+        # Use GPU if available, otherwise CPU
         self.device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-        self.resnet = InceptionResnetV1(pretrained='vggface2').to(self.device).eval()  # face embedding model
-
-        self.mtcnn = MTCNN(  # model for scene face detection
+        # Face embedding model
+        self.resnet = InceptionResnetV1(pretrained='vggface2').to(self.device).eval()
+        # Face detection model
+        self.mtcnn = MTCNN(
             image_size=160, margin=0, min_face_size=20,
             thresholds=[0.6, 0.7, 0.7], factor=0.709, post_process=True, keep_all=True,
-            device=self.device)
+            device=self.device
+        )
 
     def encode_image(self, image):
+        """Encode single image to face embedding"""
         img_cropped = self.mtcnn(image)
         encoding = self.resnet(img_cropped.to(self.device)).detach().cpu()
         return [encoding]
 
     def encode_folder(self):
+        """Generate embeddings for all images in configured folder"""
         save_to = self.config['facenet']['embedding_folder']
         os.makedirs(save_to, exist_ok=True)
         for file in tqdm.tqdm(glob.glob(self.config['images_folder'] + '/*')):
@@ -39,6 +45,7 @@ class FacenetEngine(FaceEngine):
                     pickle.dump(encoding, f)
 
     def get_best_match_idx(self, embeddings, face_embedding):
+        """Find best matching face embedding using Euclidean distance"""
         distances = [(face_embedding - e).norm().item() for e in embeddings]
         best_match_index = np.argmin(distances)
         if distances[best_match_index] >= self.config['facenet']['threshold']:
@@ -46,16 +53,17 @@ class FacenetEngine(FaceEngine):
         return best_match_index
 
     def detect_faces(self, frame: np.ndarray):
+        """Detect faces in frame and match with known faces"""
         face_locations, _ = self.mtcnn.detect(frame, landmarks=False)
-        if face_locations is None or len(face_locations) == 0:  # no faces found
+        if face_locations is None or len(face_locations) == 0:
             return [], []
+        
         try:
             faces = self.mtcnn.extract(frame, face_locations, save_path='faces/temp.jpg')
-        except:
+        except Exception:
             return [], []
 
         face_locations = np.array(face_locations)
-
         faces = faces.to(self.device)
         img_embeddings = self.resnet(faces).detach().cpu()
 
@@ -64,10 +72,8 @@ class FacenetEngine(FaceEngine):
         recognized_ids = []
 
         for i, face_embedding in enumerate(img_embeddings):
-            best_match_index = self.get_best_match_idx(embeddings,
-                                                       face_embedding)  # getting matches for each found face
+            best_match_index = self.get_best_match_idx(embeddings, face_embedding)
             idx = 0
-
             if best_match_index is not None:
                 idx = user_ids[best_match_index]
             recognized_ids.append(idx)

@@ -28,10 +28,11 @@ thread = None
 
 
 def init(config):
+    """Initialize all components with given config"""
     global face_engine, camera, connection, users, logger, stop_event
 
     logger = setup_logger(config)
-    logger.info(f"Updating config")
+    logger.info("Updating config")
     connection = Connection(config)
     users = load_users(config)
     camera = Camera(config, stop_event)
@@ -74,12 +75,14 @@ orig_handler = signal.signal(signal.SIGINT, handle_exit)
 
 
 def capture_loop():
+    """Main capture loop - processes frames and controls doors"""
     while not stop_event.is_set():
         ret, new_frame = camera.video_capture()
         if ret:
             frame = new_frame
             user_ids, face_locations = face_engine.detect_faces(frame)
             open_n, door_state = camera.check_areas(face_locations, user_ids)
+            
             if door_state != DoorState.CLOSED:
                 logger.info(f'Door {door_state} opened for {users[user_ids[open_n]]}')
                 if config["test_mode"]:
@@ -97,6 +100,7 @@ def home(request: Request):
 
 @app.post("/config")
 async def set_config(config_file: UploadFile = File(...)):
+    """Upload and apply new configuration"""
     global config
 
     try:
@@ -117,6 +121,7 @@ async def set_config(config_file: UploadFile = File(...)):
 
 @app.post("/sync")
 async def sync():
+    """Synchronize users and embeddings from database"""
     try:
         init(config)
     except Exception as e:
@@ -126,6 +131,7 @@ async def sync():
 
 @app.get("/video_feed")
 def video_feed():
+    """Stream video feed to web interface"""
     try:
         return StreamingResponse(camera.generate(), media_type="multipart/x-mixed-replace; boundary=frame")
     except Exception as e:

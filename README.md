@@ -4,63 +4,78 @@
 ---
 
 **Project Overview**
-- This project integrates face recognition technology to facilitate a secure and efficient entry process for the
-local university in my hometown. It identifies students as they approach through live video feed from an entrance camera system and, upon successful
-identification within our database of known faces, one designated turnstile will open to grant access.
-- Now with web-interface
 
+A face recognition system for university entrance management that identifies students via live camera feed and opens designated turnstiles for authorized access. Features a web-based interface for configuration and monitoring.
 
-**Privacy & Security Measures**
-- User Data Protection: For privacy reasons, all personal photos are stored encoded to ensure confidentiality and compliance with regulations.  
+**Key Features:**
+- Real-time face detection and recognition
+- Configurable entrance/exit areas
+- Web interface for configuration and monitoring
+- Privacy-focused: face embeddings stored instead of raw images
+- Multiple recognition engine support (currently FaceNet)
 
-**Configuration Options**
-- Recognition Areas: Users can define the screen areas for both entrance and exit
-turnstiles
-- Face Recognition Algorithms Selection: Enables users to choose between different methods for face recognition
-  Now available:
-  * ~~face-recognition~~
-  * facenet
+**Face Recognition Engines:**
+- ✅ **FaceNet** (InceptionResNetV1 + MTCNN) - Active
+- 🚫 **face-recognition** - Currently disabled
 
-**config.yaml**
-* source: excel \ db
-* excel_file: excel file path if source == excel
-* images_folder: folder with photos of users
-* mode: [facenet](https://github.com/timesler/facenet-pytorch) / [face-recognition](https://github.com/ageitgey/face_recognition)
-* no_name_user: how unknown people are labelled
-* show: True \ False - show camera input on screen
-* test_mode: True \ False - in test mode the turnstiles do not work
+## Configuration (config.yaml)
 
-* camera 
-  + id: camera IP \ 0 for default camera
-  + frame_mode: full \ center - how frames face is located relately to the camera areas 
+### General Settings
+- `source`: Data source - `excel` or `db`
+- `excel_file`: Path to Excel file (when source=excel)
+- `images_folder`: Folder containing user photos
+- `mode`: Recognition engine - `facenet` (recommended)
+- `no_name_user`: Label for unrecognized users
+- `test_mode`: `true`/`false` - Disables turnstile actuation when true
+- `embedding_folder`: Where face embeddings are stored
 
-* connection:
-  + host: IP of the host, responsible for the turnstile opening
-  + login
-  + password
+### Camera Settings
+- `camera.id`: Camera device ID or IP (0 for default webcam)
+- `camera.reduce_frame`: Frame scaling factor
+- `camera.frame_mode`: `center` (face center point) or `full` (face fully contained)
 
-* face-recognition:
-  + embedding_folder: folder for face-recognition embeddings
-  + num_jitters
-  + tolerance: higher means more strict
+### Connection Settings (for database mode)
+- `connection.host`: API host IP
+- `connection.login`: API username
+- `connection.password`: API password
 
-* facenet:
-  + embedding_folder: folder for facenet embeddings
-  + threshold: lower means more strict
+### FaceNet Settings
+- `facenet.embedding_folder`: Storage for FaceNet embeddings
+- `facenet.threshold`: Matching threshold (lower = stricter)
 
-* turnsites:
-  + area_1: exit area x, y, w, h relative values
-  + area_2: entrance area
-  + id_tur
+### Turnstiles
+- `turnstiles.area_1`: Exit area [x, y, width, height] (relative 0-1)
+- `turnstiles.area_2`: Entrance area [x, y, width, height] (relative 0-1)
+- `turnstiles.id_tur`: Turnstile device ID
+- `turnstiles.min_time_diff`: Minimum seconds between door triggers
 
-**Usage Instructions** 
-1. Put user photos in the `images` folder
-2. Put in `excel_file` user names with their ids (id = embedding file name) or use a database
-3. Run the program:
-```commandline
-uvicorn main:app --host HOST --port PORT --reload 
+## Installation
+
+```bash
+pip install -r requirements.txt
 ```
-4. Open HOST:PORT in your browser
-5. To update config, use the "Upload" button
-6. To add new users,  use "Synchronize" button
-7. To exit, press `Ctrl + C`
+
+## Usage
+
+1. **Setup Users**: Place user photos in the `images` folder
+2. **Configure Database**: 
+   - For Excel mode: Create `db.xlsx` with columns [User ID, User Name]
+   - For database mode: Configure connection settings in config.yaml
+3. **Run Application**:
+```bash
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
+4. **Access Web Interface**: Open `http://localhost:8000` in browser
+5. **Web Interface Functions**:
+   - Upload new configuration
+   - Synchronize users and embeddings
+   - View live camera feed
+6. **Shutdown**: Press `Ctrl + C`
+
+## Requirements
+
+- Python 3.8+
+- OpenCV
+- PyTorch (for FaceNet)
+- FastAPI (for web interface)
+- See `requirements.txt` for complete list
