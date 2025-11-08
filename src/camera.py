@@ -1,5 +1,5 @@
+import logging
 import time
-
 import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -9,6 +9,8 @@ from src.utils import DoorState
 
 STOP_AFTER_ATTEMPT = 200
 WAIT = 0.1
+
+logger = logging.getLogger(__name__)
 
 
 class Camera:
@@ -95,15 +97,18 @@ class Camera:
         img = Image.fromarray(self.frame[:, :, ::-1].copy()).convert("RGB")
 
         # Draw area boundaries
-        img = self.draw_box(img, self.exit_area, label='Exit', color='red')
-        img = self.draw_box(img, self.entrance_area, label='Entrance', color='green')
+        try:
+            img = self.draw_box(img, self.exit_area, label='Exit', color='red')
+            img = self.draw_box(img, self.entrance_area, label='Entrance', color='green')
 
-        # Draw face boxes with names
-        for user_id, box in zip(recognized_ids, face_locations):
-            if user_id not in users:
-                user_id = 0
-            user_name = users[user_id]
-            img = self.draw_box(img, box, label=user_name)
+            # Draw face boxes with names
+            for user_id, box in zip(recognized_ids, face_locations):
+                if user_id not in users:
+                    user_id = 0
+                user_name = users[user_id]
+                img = self.draw_box(img, box, label=user_name)
+        except Exception as exc:
+            logger.debug("Skipping frame overlay due to error: %s", exc)
 
         self.show_frame = np.asarray(img)[:, :, ::-1]
 
@@ -132,23 +137,30 @@ class Camera:
         except Exception:
             font = ImageFont.load_default()
 
-        x1, y1, x2, y2 = box
-        
+        # Normalize and validate incoming coordinates
+        coords = np.asarray(box, dtype=float)
+        if coords.shape[0] != 4 or not np.all(np.isfinite(coords)):
+            return image
+
+        x1, y1, x2, y2 = coords
+
         # Ensure coordinates are valid before clipping
         if x1 > x2:
             x1, x2 = x2, x1
         if y1 > y2:
             y1, y2 = y2, y1
-            
+
         # Clip coordinates to frame boundaries
-        x1 = np.clip(x1, 0, self.frame_width)
-        x2 = np.clip(x2, 0, self.frame_width)
-        y1 = np.clip(y1, 0, self.frame_height)
-        y2 = np.clip(y2, 0, self.frame_height)
+        x1 = float(np.clip(x1, 0, self.frame_width))
+        x2 = float(np.clip(x2, 0, self.frame_width))
+        y1 = float(np.clip(y1, 0, self.frame_height))
+        y2 = float(np.clip(y2, 0, self.frame_height))
 
         # Check if rectangle is still valid after clipping
         if x1 >= x2 or y1 >= y2:
             return image
+        # Round to int for PIL drawing primitives
+        x1, y1, x2, y2 = map(int, (round(x1), round(y1), round(x2), round(y2)))
 
         # --- filled rounded rect ---
         draw.rounded_rectangle(

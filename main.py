@@ -77,19 +77,36 @@ orig_handler = signal.signal(signal.SIGINT, handle_exit)
 def capture_loop():
     """Main capture loop - processes frames and controls doors"""
     while not stop_event.is_set():
-        ret, new_frame = camera.video_capture()
-        if ret:
+        try:
+            ret, new_frame = camera.video_capture()
+        except Exception as exc:
+            logger.exception("Error capturing frame: %s", exc)
+            continue
+
+        if not ret:
+            continue
+
+        try:
             frame = new_frame
             user_ids, face_locations = face_engine.detect_faces(frame)
+        except Exception as exc:
+            logger.exception("Error running face detection: %s", exc)
+            continue
+
+        try:
             open_n, door_state = camera.check_areas(face_locations, user_ids)
-            
-            if door_state != DoorState.CLOSED:
-                logger.info(f'Door {door_state} opened for {users[user_ids[open_n]]}')
-                if config["test_mode"]:
-                    print(f'Door {door_state} opened for {users[user_ids[open_n]]}')
+
+            if door_state != DoorState.CLOSED and open_n is not None:
+                user_id = user_ids[open_n]
+                user_name = users.get(user_id, users.get(0, "Unknown"))
+                logger.info(f'Door {door_state} opened for {user_name}')
+                if config.get("test_mode"):
+                    print(f'Door {door_state} opened for {user_name}')
                 else:
-                    connection.open_doors(user_ids[open_n], door_state, users[user_ids[open_n]])
+                    connection.open_doors(user_id, door_state, user_name)
             camera.show(face_locations, user_ids, users)
+        except Exception as exc:
+            logger.exception("Error processing frame overlay or door logic: %s", exc)
     logger.info("Loop exited")
 
 

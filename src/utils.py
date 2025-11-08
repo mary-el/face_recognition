@@ -2,10 +2,11 @@ import json
 import logging
 from datetime import datetime
 from enum import Enum
+from typing import Dict, Optional
 
-import cv2
 import pandas as pd
 import requests
+from requests import RequestException
 
 
 class DoorState(Enum):
@@ -14,8 +15,9 @@ class DoorState(Enum):
     ENTRANCE = 2
 
 
-logger: logging.Logger = None
-connection = None
+logger: Optional[logging.Logger] = None
+connection: Optional["Connection"] = None
+
 
 def setup_logger(config) -> logging.Logger:
     global logger
@@ -58,46 +60,99 @@ class Connection:
             DoorState.EXIT: "Exit"
         }
 
-    def getToken(self):  # autorization
-        url = f'http://{self.host}/api/system/auth'
+    def _request(self, method: str, path: str, **kwargs) -> requests.Response:
+        url = f'http://{self.host}{path}'
+        try:
+            response = requests.request(method, url, headers=self.headers, timeout=5, **kwargs)
+            response.raise_for_status()
+        except RequestException as exc:
+            if logger:
+                logger.exception("Request to %s failed: %s", url, exc)
+            raise RuntimeError(f"Connection error while calling {url}") from exc
+        return response
+
+    def getToken(self) -> str:
         payload = {
             "login": self.login,
             "password": self.password
         }
-        return requests.request("post", url, json=payload, headers=self.headers).json()["token"]
+        response = self._request("post", "/api/system/auth", json=payload)
+        try:
+            data = response.json()
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Invalid auth response payload") from exc
+
+        token = data.get("token")
+        if not token:
+            raise RuntimeError("Auth response missing token")
+        return token
 
     def set_headers(self):
-        self.headers["Authorization"] = self.getToken()
+        self.headers["Authorization"] = f"Bearer {self.getToken()}"
 
-    def read_users(self):  # get list of users
-        db = {}
-        url = f'http://{self.host}/api/users/staff/list'
+    def read_users(self) -> Dict[int, str]:
+        url = "/api/users/staff/list"
         querystring = {"withPhone": "true"}
-        for user in json.loads(requests.request("get", url, headers=self.headers, params=querystring).text):
-            db[user['id']] = user['name']
+        response = self._request("get", url, params=querystring)
+        try:
+            users_raw = response.json()
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Invalid users response payload") from exc
+
+        db: Dict[int, str] = {}
+        for user in users_raw:
+            try:
+                db[user['id']] = user['name']
+            except KeyError:
+                if logger:
+                    logger.warning("Skipping malformed user record: %s", user)
         return db
 
-    def passing(self, user_id, direction, event_description):
-        url = f'http://{self.host}/api/devices/{self.config["turnstiles"]["id_tur"]}/pass'
+    def passing(self, user_id, direction, event_description) -> bool:
         payload = {
             "user_id": user_id,
             "direction": direction,
             "event_description": event_description
         }
-        response = requests.request("post", url, json=payload, headers=self.headers)
-        return (json.loads(response.text).get('result'))
+        response = self._request(
+            "post",
+            f'/api/devices/{self.config["turnstiles"]["id_tur"]}/pass',
+            json=payload
+        )
+        try:
+            data = response.json()
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Invalid pass response payload") from exc
+        return data.get('result') == 'ok'
 
     def open_doors(self, id, direction: DoorState, user_name: str):
-        logger.info(f'{self.directions[direction]} door opened for {user_name}')
+        if logger:
+            logger.info('%s door opened for %s', self.directions[direction], user_name)
         time_diff = (datetime.now() - self.previous_state['time']).total_seconds()
 
         if id != self.previous_state['id'] or time_diff > self.config["turnstiles"]["min_time_diff"]:
             self.previous_state['id'] = id
             self.previous_state['direction'] = direction
             self.previous_state['time'] = datetime.now()
-            if not (self.passing(int(id), direction, f'{direction} door') == 'ok'):  # open the door
-                logger.error(f'Authorization token is out of date')
-                exit()
+            try:
+                success = self.passing(int(id), direction.value, f'{direction.name} door')
+            except RuntimeError as exc:
+                if logger:
+                    logger.error("Failed to notify door opening: %s", exc)
+                return
+
+            if not success:
+                if logger:
+                    logger.warning('Authorization token expired, refreshing and retrying')
+                try:
+                    self.set_headers()
+                    success = self.passing(int(id), direction.value, f'{direction.name} door')
+                except RuntimeError as exc:
+                    if logger:
+                        logger.error("Retry failed to notify door opening: %s", exc)
+                    return
+                if not success and logger:
+                    logger.error('Door open request rejected after token refresh')
 
 
 def get_connection(config) -> Connection:
@@ -113,11 +168,12 @@ def read_excel(file):
     user_dict = {ind: name for ind, name in df.values}
     return user_dict
 
-def load_users(config):   # loading users' names and ids
+
+def load_users(config):
     if config['source'] == 'excel':
         users = read_excel(config['excel_file'])
     else:
-        connection = get_connection(config)
-        users = connection.read_users()
+        conn = get_connection(config)
+        users = conn.read_users()
     users[0] = config['no_name_user']
     return users
